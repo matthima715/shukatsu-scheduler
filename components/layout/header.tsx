@@ -11,6 +11,11 @@ export function Header() {
           <h1 className="text-xl font-bold text-blue-700">Shukatsu Scheduler</h1>
         </Link>
       </div>
+      <div className="bg-amber-50 border-y border-amber-200">
+        <div className="container mx-auto px-4 py-2 text-center text-amber-800 text-sm">
+          ⚠️ このサイトは自主学習用のデモです。入力した内容は保存されません。
+        </div>
+      </div>
     </header>
   )
 }
