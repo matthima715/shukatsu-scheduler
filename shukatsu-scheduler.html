@@ -1,0 +1,366 @@
+<title>就活スケジューラー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 左に入力フォーム → 右にカレンダー。視線が左から右へ流れる2分割。狭い画面では上下に積む */
+:root{
+  --bg:#EEF1F5; --paper:#FFFFFF; --ink:#18213B; --muted:#5E6782; --line:#D5DAE5; --soft:#E9ECF2;
+  --accent:#2B3A8C; --accent-ink:#FFFFFF; --accent-soft:#E2E6F7;
+  --sun:#C2410C; --sat:#1D4ED8;
+  --st-todo:#C2410C; --st-todo-bg:#FDEBDF;
+  --st-doing:#2B3A8C; --st-doing-bg:#E2E6F7;
+  --st-done:#15803D; --st-done-bg:#DFF3E5;
+  --late:#B42318; --late-bg:#FDECEA;
+  --f-body:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  --f-mono:"DM Mono",ui-monospace,Consolas,monospace;
+  --r:12px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0F1320; --paper:#171C2C; --ink:#E7EAF3; --muted:#9AA3BE; --line:#2B3248; --soft:#20263A;
+  --accent:#9AA8F5; --accent-ink:#0F1320; --accent-soft:#252C4E;
+  --sun:#F59E6B; --sat:#8DB0FF;
+  --st-todo:#F6A06E; --st-todo-bg:#3A2418;
+  --st-doing:#A9B5F7; --st-doing-bg:#252C4E;
+  --st-done:#7DD99A; --st-done-bg:#16321F;
+  --late:#F38B80; --late-bg:#3A1D1E;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1320; --paper:#171C2C; --ink:#E7EAF3; --muted:#9AA3BE; --line:#2B3248; --soft:#20263A;
+  --accent:#9AA8F5; --accent-ink:#0F1320; --accent-soft:#252C4E;
+  --sun:#F59E6B; --sat:#8DB0FF;
+  --st-todo:#F6A06E; --st-todo-bg:#3A2418;
+  --st-doing:#A9B5F7; --st-doing-bg:#252C4E;
+  --st-done:#7DD99A; --st-done-bg:#16321F;
+  --late:#F38B80; --late-bg:#3A1D1E;
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+.wrap{max-width:1160px;margin:0 auto;padding-inline:16px;padding-block:20px 40px;display:grid;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px}
+header h1{margin:0;font-size:24px;font-weight:900;letter-spacing:.04em}
+header .today{font-family:var(--f-mono);color:var(--muted);font-size:13px}
+
+.banner{background:var(--accent-soft);border:1px dashed var(--accent);border-radius:var(--r);padding:10px 14px;font-size:14px}
+.banner b{color:var(--accent)}
+
+.split{display:grid;grid-template-columns:minmax(300px,360px) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:860px){.split{grid-template-columns:minmax(0,1fr)}}
+
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:18px;min-width:0}
+.panel h2{margin:0 0 12px;font-size:15px;font-weight:900;display:flex;align-items:center;gap:8px}
+.step{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:12px;font-family:var(--f-mono)}
+
+form{display:grid;gap:12px}
+.field{display:grid;gap:4px}
+.field label{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em}
+.field input,.field select{border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:var(--bg);width:100%}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{text-align:center;padding:8px 4px;font-size:14px;font-weight:700;color:var(--muted);cursor:pointer;letter-spacing:0;border-left:1px solid var(--line)}
+.seg label:first-of-type{border-left:0}
+.seg input:focus-visible + label{outline:2px solid var(--accent);outline-offset:-2px}
+.seg input[value="todo"]:checked + label{background:var(--st-todo-bg);color:var(--st-todo)}
+.seg input[value="doing"]:checked + label{background:var(--st-doing-bg);color:var(--st-doing)}
+.seg input[value="done"]:checked + label{background:var(--st-done-bg);color:var(--st-done)}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:9px 16px;font-weight:700;font-size:14px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);flex:1}
+.btn.danger{color:var(--late);border-color:var(--late)}
+.btn.danger.armed{background:var(--late);color:var(--paper)}
+.editing{font-size:12px;color:var(--accent);font-weight:700}
+
+.upcoming{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+.upcoming h3{margin:0 0 8px;font-size:13px;color:var(--muted);letter-spacing:.08em}
+.up{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--soft);width:100%;background:none;border-left:0;border-right:0;border-bottom:0;text-align:left}
+.up:first-of-type{border-top:0}
+.up .d{font-family:var(--f-mono);font-size:13px}
+.up .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
+.up .t small{color:var(--muted)}
+.up .left{font-family:var(--f-mono);font-size:12px;font-weight:500;white-space:nowrap}
+.up .left.hot{color:var(--late)}
+.none{color:var(--muted);font-size:13px}
+
+.calhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.calhead .ym{font-size:20px;font-weight:900}
+.calhead .nav{display:flex;gap:6px}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.dow{background:var(--soft);text-align:center;font-size:12px;font-weight:700;padding:4px 0;color:var(--muted)}
+.dow.sun{color:var(--sun)}.dow.sat{color:var(--sat)}
+.cell{background:var(--paper);min-height:100px;padding:4px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.cell.out{background:var(--soft)}
+.cell.out .num{opacity:.5}
+.cell .num{font-family:var(--f-mono);font-size:13px;align-self:flex-start;padding:0 6px;border-radius:999px}
+.cell.sun .num{color:var(--sun)}.cell.sat .num{color:var(--sat)}
+.cell.today .num{background:var(--accent);color:var(--accent-ink)}
+.ev{border:0;border-radius:4px;padding:1px 5px;font-size:11px;font-weight:700;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%}
+.ev.todo{background:var(--st-todo-bg);color:var(--st-todo)}
+.ev.doing{background:var(--st-doing-bg);color:var(--st-doing)}
+.ev.done{background:var(--st-done-bg);color:var(--st-done);text-decoration:line-through;opacity:.7}
+.ev.late{background:var(--late-bg);color:var(--late);box-shadow:inset 3px 0 0 var(--late)}
+.ev.flash{animation:flash 1.2s ease-out}
+@keyframes flash{0%{outline:3px solid var(--accent)}100%{outline:3px solid transparent}}
+@media (prefers-reduced-motion:reduce){.ev.flash{animation:none}}
+.more{font-size:11px;color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+@media (max-width:560px){.cell{min-height:64px}.ev{font-size:10px;padding:0 3px}}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:999px;font-size:13px;font-weight:700}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>就活スケジューラー</h1>
+    <span class="today" id="todayLbl"></span>
+  </header>
+
+  <div class="banner" id="sampleBanner" hidden><b>サンプル表示中</b>　架空の予定を表示しています。左のフォームから最初の予定を登録すると、サンプルは消えます。</div>
+  <div class="banner" id="localBanner" hidden>この端末のブラウザにだけ保存しています。別の端末からは見えません。</div>
+
+  <div class="split">
+    <!-- 左：入力 -->
+    <section class="panel" aria-labelledby="formTtl">
+      <h2 id="formTtl"><span class="step">1</span><span id="formTtlText">予定を入力</span></h2>
+      <form id="form" autocomplete="off">
+        <div class="field"><label for="fTitle">タスク名</label><input id="fTitle" required maxlength="60" placeholder="例：ES提出、一次面接"></div>
+        <div class="field"><label for="fCompany">企業名</label><input id="fCompany" required maxlength="60" placeholder="例：株式会社〇〇" list="coList"><datalist id="coList"></datalist></div>
+        <div class="field"><label for="fDue">締切日</label><input id="fDue" type="date" required></div>
+        <div class="field"><label id="stLbl">ステータス</label>
+          <div class="seg" role="radiogroup" aria-labelledby="stLbl">
+            <input type="radio" name="st" id="st-todo" value="todo" checked><label for="st-todo">未着手</label>
+            <input type="radio" name="st" id="st-doing" value="doing"><label for="st-doing">対応中</label>
+            <input type="radio" name="st" id="st-done" value="done"><label for="st-done">完了</label>
+          </div>
+        </div>
+        <div class="btns">
+          <button class="btn primary" type="submit" id="submitBtn">カレンダーに追加 →</button>
+          <button class="btn" type="button" id="cancelBtn" hidden>やめる</button>
+          <button class="btn danger" type="button" id="delBtn" hidden>削除</button>
+        </div>
+      </form>
+
+      <div class="upcoming">
+        <h3>締切が近い順（未完了）</h3>
+        <div id="upcoming"></div>
+      </div>
+    </section>
+
+    <!-- 右：カレンダー -->
+    <section class="panel" aria-labelledby="calTtl">
+      <div class="calhead">
+        <h2 id="calTtl" style="margin:0"><span class="step">2</span><span class="ym" id="ymLbl"></span></h2>
+        <div class="nav">
+          <button class="btn" type="button" id="prevM" aria-label="前の月">←</button>
+          <button class="btn" type="button" id="thisM">今月</button>
+          <button class="btn" type="button" id="nextM" aria-label="次の月">→</button>
+        </div>
+      </div>
+      <div class="cal" id="cal"></div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--st-todo)"></i>未着手</span>
+        <span><i class="sw" style="background:var(--st-doing)"></i>対応中</span>
+        <span><i class="sw" style="background:var(--st-done)"></i>完了</span>
+        <span><i class="sw" style="background:var(--late)"></i>締切を過ぎて未完了</span>
+        <span>予定をクリックすると左で編集できます</span>
+      </div>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+const ST = {todo:"未着手", doing:"対応中", done:"完了"};
+const WD = ["日","月","火","水","木","金","土"];
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const rid = () => Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);
+const pad = n => String(n).padStart(2,"0");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parse = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y,m-1,d); };
+const today = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
+const diff = s => Math.round((parse(s)-today())/86400000);
+const addDays = n => { const d = today(); d.setDate(d.getDate()+n); return ymd(d); };
+const fmtMD = s => { const d = parse(s); return `${d.getMonth()+1}/${d.getDate()}（${WD[d.getDay()]}）`; };
+const leftLabel = n => n===0?"今日":n===1?"明日":n>0?`あと${n}日`:`${-n}日超過`;
+
+let tasks = [], sample = false, mode = "loading", store = null;
+let editingId = null, flashId = null;
+let calMonth = (()=>{const d=today();return new Date(d.getFullYear(),d.getMonth(),1);})();
+
+function sampleTasks(){
+  const t=(title,company,day,status)=>({id:rid(),title,company,due:addDays(day),status});
+  return [
+    t("ES提出","北斗ソフトウェア",2,"doing"),
+    t("Webテスト受験","みなと海運",1,"todo"),
+    t("会社説明会","青葉フードサービス",0,"todo"),
+    t("一次面接","北斗ソフトウェア",6,"todo"),
+    t("最終面接","東雲フィナンシャル",9,"todo"),
+    t("内定承諾の回答","白樺化学",13,"todo"),
+    t("ES提出","青葉フードサービス",-1,"todo"),
+    t("Webテスト受験","北斗ソフトウェア",-5,"done"),
+  ];
+}
+
+/* ---------- 保存 ---------- */
+async function boot(){
+  render();
+  let db=null, uid=null;
+  try{
+    if (window.claude?.use){
+      db = await window.claude.use("db");
+      const user = await window.claude.use("user");
+      uid = user ? await user.id() : null;
+    }
+  }catch{}
+  if (db && uid){
+    const col = db.collection("data/users/"+uid);
+    store = {
+      async save(t){ await col.doc(t.id).set({...t}); },
+      async remove(id){ await col.doc(id).delete(); },
+    };
+    col.onSnapshot(snap=>{
+      const list = snap.docs.map(d=>({...d.data(), id:d.id}));
+      mode="db";
+      if (list.length){ tasks=list; sample=false; } else { tasks=sampleTasks(); sample=true; }
+      render();
+    }, ()=>useLocal());
+  } else useLocal();
+}
+function useLocal(){
+  const KEY="shs.tasks"; let list=[];
+  try{ list=JSON.parse(localStorage.getItem(KEY)||"[]"); }catch{}
+  const write=()=>{ try{ localStorage.setItem(KEY, JSON.stringify(tasks)); }catch{} };
+  store = {
+    async save(t){ const i=tasks.findIndex(x=>x.id===t.id); i>=0?tasks[i]=t:tasks.push(t); write(); render(); },
+    async remove(id){ tasks=tasks.filter(x=>x.id!==id); write(); render(); },
+  };
+  mode="local";
+  if (list.length){ tasks=list; sample=false; } else { tasks=sampleTasks(); sample=true; }
+  render();
+}
+
+/* ---------- 描画 ---------- */
+function render(){
+  const t=today();
+  $("#todayLbl").textContent = `今日 ${t.getFullYear()}.${pad(t.getMonth()+1)}.${pad(t.getDate())}（${WD[t.getDay()]}）`;
+  $("#sampleBanner").hidden = !sample;
+  $("#localBanner").hidden = mode!=="local";
+  $("#coList").innerHTML = [...new Set(tasks.map(x=>x.company))].map(c=>`<option value="${esc(c)}">`).join("");
+  renderUpcoming(); renderCal();
+}
+
+function renderUpcoming(){
+  const list = tasks.filter(x=>x.status!=="done").sort((a,b)=>a.due.localeCompare(b.due)).slice(0,6);
+  $("#upcoming").innerHTML = list.length ? list.map(x=>{
+    const n=diff(x.due);
+    return `<button type="button" class="up" data-id="${x.id}">
+      <span class="d">${fmtMD(x.due)}</span>
+      <span class="t">${esc(x.title)} <small>${esc(x.company)}</small></span>
+      <span class="left ${n<=2?"hot":""}">${leftLabel(n)}</span></button>`;
+  }).join("") : `<p class="none">未完了のタスクはありません。</p>`;
+}
+
+function renderCal(){
+  const y=calMonth.getFullYear(), m=calMonth.getMonth();
+  $("#ymLbl").innerHTML = `<span class="mono">${y}</span>年<span class="mono">${m+1}</span>月`;
+  const start=new Date(y,m,1); start.setDate(1-start.getDay());
+  const last=new Date(y,m+1,0);
+  const cells=Math.ceil(((last-start)/86400000+1)/7)*7;
+  const by={};
+  for (const x of tasks) (by[x.due] ||= []).push(x);
+  const tStr=ymd(today());
+  let h = WD.map((w,i)=>`<div class="dow ${i===0?"sun":i===6?"sat":""}">${w}</div>`).join("");
+  for (let i=0;i<cells;i++){
+    const d=new Date(start); d.setDate(start.getDate()+i);
+    const s=ymd(d), items=(by[s]||[]).sort((a,b)=>a.status.localeCompare(b.status));
+    const cls=[d.getMonth()!==m?"out":"", d.getDay()===0?"sun":d.getDay()===6?"sat":"", s===tStr?"today":""].join(" ");
+    const shown=items.slice(0,3);
+    h += `<div class="cell ${cls}"><span class="num">${d.getDate()}</span>${
+      shown.map(x=>{
+        const late = x.status!=="done" && diff(x.due)<0;
+        return `<button type="button" class="ev ${x.status} ${late?"late":""} ${x.id===flashId?"flash":""}" data-id="${x.id}" title="${esc(x.company+"："+x.title+"（"+ST[x.status]+"）")}">${esc(x.company)}｜${esc(x.title)}</button>`;
+      }).join("")
+    }${items.length>3?`<span class="more">ほか${items.length-3}件</span>`:""}</div>`;
+  }
+  $("#cal").innerHTML=h;
+  flashId=null;
+}
+
+/* ---------- フォーム ---------- */
+function resetForm(){
+  editingId=null;
+  $("#form").reset();
+  $("#fDue").value = ymd(today());
+  $("#formTtlText").textContent="予定を入力";
+  $("#submitBtn").textContent="カレンダーに追加 →";
+  $("#cancelBtn").hidden=true; $("#delBtn").hidden=true;
+  disarm();
+}
+function loadForm(id){
+  const x=tasks.find(t=>t.id===id); if(!x) return;
+  editingId=id;
+  $("#fTitle").value=x.title; $("#fCompany").value=x.company; $("#fDue").value=x.due;
+  $("#st-"+x.status).checked=true;
+  $("#formTtlText").textContent="予定を編集";
+  $("#submitBtn").textContent="変更を保存 →";
+  $("#cancelBtn").hidden=false; $("#delBtn").hidden=false;
+  disarm();
+  $("#fTitle").focus();
+}
+function disarm(){ const b=$("#delBtn"); b.classList.remove("armed"); b.textContent="削除"; }
+
+$("#form").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const t={
+    id: editingId || rid(),
+    title: $("#fTitle").value.trim(),
+    company: $("#fCompany").value.trim(),
+    due: $("#fDue").value,
+    status: document.querySelector('input[name="st"]:checked').value,
+  };
+  if (!t.title || !t.company || !t.due) return;
+  const wasEditing = !!editingId;
+  if (sample){ sample=false; tasks=[]; }
+  const d=parse(t.due); calMonth=new Date(d.getFullYear(),d.getMonth(),1);
+  flashId=t.id;
+  try{
+    await store.save(t);
+    toast(wasEditing?"変更しました":`${fmtMD(t.due)} に追加しました`);
+    resetForm();
+  }catch(err){
+    toast(err?.code==="quota_exceeded"?"保存できる件数の上限です。古い予定を削除してください":"保存できませんでした。もう一度お試しください");
+  }
+});
+$("#cancelBtn").onclick=resetForm;
+$("#delBtn").onclick=async ()=>{
+  const b=$("#delBtn");
+  if (!b.classList.contains("armed")){ b.classList.add("armed"); b.textContent="本当に削除する"; return; }
+  const id=editingId;
+  if (sample){ tasks=tasks.filter(x=>x.id!==id); render(); resetForm(); return; }
+  try{ await store.remove(id); toast("削除しました"); resetForm(); }catch{ toast("削除できませんでした"); }
+};
+
+document.addEventListener("click", e=>{
+  const b=e.target.closest("[data-id]");
+  if (b) loadForm(b.dataset.id);
+});
+$("#prevM").onclick=()=>{calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()-1,1);renderCal();};
+$("#nextM").onclick=()=>{calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()+1,1);renderCal();};
+$("#thisM").onclick=()=>{const d=today();calMonth=new Date(d.getFullYear(),d.getMonth(),1);renderCal();};
+
+let tt;
+function toast(msg){ const el=$("#toast"); el.textContent=msg; el.hidden=false; clearTimeout(tt); tt=setTimeout(()=>el.hidden=true,2200); }
+
+resetForm();
+boot();
+})();
+</script>
