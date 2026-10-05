@@ -283,6 +283,8 @@ dialog::backdrop{background:rgba(10,14,30,.45)}
 
 <div class="toast" id="toast" hidden></div>
 
+<script src="firebase-config.js"></script>
+<script src="auth.js"></script>
 <script>
 (() => {
 const TYPES = [
@@ -347,23 +349,22 @@ function localStore(){
 
 async function boot(){
   render();
-  let db=null, uid=null;
-  try {
-    if (window.claude?.use) {
-      [db] = await Promise.all([window.claude.use("db")]);
-      const user = await window.claude.use("user");
-      uid = user ? await user.id() : null;
-    }
-  } catch {}
-  if (db && uid) {
-    const col = db.collection("data/users/"+uid);
+  const cloud = await (window.cloudReady || null);
+  if (cloud) {
+    const col = cloud.collection("companies");
     let writable = true;
     store = {
       async save(c){ try { await col.doc(c.id).set(JSON.parse(JSON.stringify(c))); } catch(e){ toast(e?.code==="quota_exceeded"?"保存容量の上限です。古い企業を削除してください":"保存できませんでした。もう一度お試しください"); throw e; } },
       async remove(id){ try { await col.doc(id).delete(); } catch(e){ toast("削除できませんでした"); } },
     };
-    col.onSnapshot(snap => {
+    let checked = false;
+    col.onSnapshot(async snap => {
       const list = snap.docs.map(d => ({...d.data(), id:d.id}));
+      if (!checked && !snap.fromCache) {
+        checked = true;
+        try { if (!list.length && await cloud.importLocal("shk.companies","companies")) { toast("この端末のデータをクラウドに移しました"); return; } }
+        catch { toast("この端末のデータをクラウドに移せませんでした"); }
+      }
       state.mode="db";
       if (list.length) { state.companies = list; state.sample=false; }
       else { state.companies = sampleData(); state.sample=true; }

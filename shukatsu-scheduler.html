@@ -176,6 +176,8 @@ form{display:grid;gap:12px}
 </div>
 <div class="toast" id="toast" hidden></div>
 
+<script src="firebase-config.js"></script>
+<script src="auth.js"></script>
 <script>
 (() => {
 const ST = {todo:"未着手", doing:"対応中", done:"完了"};
@@ -213,22 +215,21 @@ function sampleTasks(){
 /* ---------- 保存 ---------- */
 async function boot(){
   render();
-  let db=null, uid=null;
-  try{
-    if (window.claude?.use){
-      db = await window.claude.use("db");
-      const user = await window.claude.use("user");
-      uid = user ? await user.id() : null;
-    }
-  }catch{}
-  if (db && uid){
-    const col = db.collection("data/users/"+uid);
+  const cloud = await (window.cloudReady || null);
+  if (cloud){
+    const col = cloud.collection("tasks");
     store = {
       async save(t){ await col.doc(t.id).set({...t}); },
       async remove(id){ await col.doc(id).delete(); },
     };
-    col.onSnapshot(snap=>{
+    let checked=false;
+    col.onSnapshot(async snap=>{
       const list = snap.docs.map(d=>({...d.data(), id:d.id}));
+      if (!checked && !snap.fromCache){
+        checked=true;
+        try{ if (!list.length && await cloud.importLocal("shs.tasks","tasks")) { toast("この端末の予定をクラウドに移しました"); return; } }
+        catch{ toast("この端末の予定をクラウドに移せませんでした"); }
+      }
       mode="db";
       if (list.length){ tasks=list; sample=false; } else { tasks=sampleTasks(); sample=true; }
       render();
